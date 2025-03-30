@@ -123,36 +123,13 @@ async function extractBarcodesFromImages(auth, images) {
     return extractedLinks;
 }
 
-async function createSpreadsheetInFolder(auth, folderId) {
-    try {
-        const sheetsService = google.sheets({ version: 'v4', auth });
-        const driveService = google.drive({ version: 'v3', auth });
-
-        const spreadsheet = await sheetsService.spreadsheets.create({
-            resource: {
-                properties: { title: "Extracted Data" },
-                sheets: [
-                    { properties: { title: "Sheet1" } },
-                    { properties: { title: "Sheet2" } },
-                    { properties: { title: "Sheet3" } }
-                ]
-            }
-        });
-
-        const spreadsheetId = spreadsheet.data.spreadsheetId;
-
-        await driveService.files.update({
-            fileId: spreadsheetId,
-            addParents: folderId,
-            fields: 'id, parents'
-        });
-
-        console.log("Spreadsheet created and moved to folder:", spreadsheetId);
-        return spreadsheetId;
-    } catch (error) {
-        console.error("Error creating spreadsheet:", error);
-        return null;
-    }
+async function getExistingSpreadsheet(auth, folderId) {
+    const driveService = google.drive({ version: 'v3', auth });
+    const response = await driveService.files.list({
+        q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet'`,
+        fields: 'files(id, name)',
+    });
+    return response.data.files.length > 0 ? response.data.files[0].id : null;
 }
 
 app.get('/process-folder', async (req, res) => {
@@ -169,9 +146,12 @@ app.get('/process-folder', async (req, res) => {
         const auth = new google.auth.OAuth2();
         auth.setCredentials({ access_token: req.session.accessToken });
 
-        const spreadsheetId = await createSpreadsheetInFolder(auth, folderId);
+        let spreadsheetId = await getExistingSpreadsheet(auth, folderId);
         if (!spreadsheetId) {
-            return res.status(500).json({ error: "Failed to create spreadsheet" });
+            spreadsheetId = await createSpreadsheetInFolder(auth, folderId);
+            if (!spreadsheetId) {
+                return res.status(500).json({ error: "Failed to create spreadsheet" });
+            }
         }
 
         const images = await listImagesInFolder(auth, folderId);
