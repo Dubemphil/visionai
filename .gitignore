@@ -6,7 +6,7 @@ yarn-error.log
 # Environment files
 .env
 service-account.json
-node_modules
+node
 # Logs and temp files
 *.log
 *.tmp
@@ -19,4 +19,3 @@ coverage/
 
 # Ignore VSCode settings (optional)
 .vscode/
-.git
