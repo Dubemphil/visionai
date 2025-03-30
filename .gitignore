@@ -19,3 +19,4 @@ coverage/
 
 # Ignore VSCode settings (optional)
 .vscode/
+.git
