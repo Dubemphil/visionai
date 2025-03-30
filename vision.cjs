@@ -97,6 +97,32 @@ app.get('/select-folder', async (req, res) => {
     }
 });
 
+async function listImagesInFolder(auth, folderId) {
+    try {
+        const driveService = google.drive({ version: 'v3', auth });
+        const response = await driveService.files.list({
+            q: `'${folderId}' in parents and mimeType contains 'image/'`,
+            fields: 'files(id, name)'
+        });
+        return response.data.files;
+    } catch (error) {
+        console.error("Error fetching images:", error);
+        return [];
+    }
+}
+
+async function extractBarcodesFromImages(auth, images) {
+    const extractedLinks = [];
+    for (const image of images) {
+        const [result] = await visionClient.textDetection(`https://drive.google.com/uc?id=${image.id}`);
+        const detections = result.textAnnotations;
+        if (detections.length > 0) {
+            extractedLinks.push([detections[0].description]);
+        }
+    }
+    return extractedLinks;
+}
+
 async function createSpreadsheetInFolder(auth, folderId) {
     try {
         const sheetsService = google.sheets({ version: 'v4', auth });
@@ -144,9 +170,21 @@ app.get('/process-folder', async (req, res) => {
         auth.setCredentials({ access_token: req.session.accessToken });
 
         const spreadsheetId = await createSpreadsheetInFolder(auth, folderId);
-
         if (!spreadsheetId) {
             return res.status(500).json({ error: "Failed to create spreadsheet" });
+        }
+
+        const images = await listImagesInFolder(auth, folderId);
+        const extractedLinks = await extractBarcodesFromImages(auth, images);
+
+        if (extractedLinks.length > 0) {
+            await sheets.spreadsheets.values.update({
+                auth,
+                spreadsheetId,
+                range: "Sheet1!A2",
+                valueInputOption: "RAW",
+                resource: { values: extractedLinks }
+            });
         }
 
         res.json({ message: `Processing folder: ${folderId}`, spreadsheetId });
