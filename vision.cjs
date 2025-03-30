@@ -21,17 +21,19 @@ app.use(session({ secret: 'your_secret', resave: false, saveUninitialized: true 
 app.use(passport.initialize());
 app.use(passport.session());
 
+console.log("Using Redirect URI:", process.env.GOOGLE_REDIRECT_URI);
+
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_REDIRECT_URI
+    callbackURL: process.env.GOOGLE_REDIRECT_URI || "http://localhost:8080/auth/callback"
 }, (accessToken, refreshToken, profile, done) => {
     if (!accessToken) {
         console.error("OAuth Error: Missing Access Token");
         return done(new Error("OAuth authentication failed"), null);
     }
     console.log("OAuth Success - Access Token:", accessToken);
-    profile.accessToken = accessToken; // Store access token in profile
+    profile.accessToken = accessToken;
     return done(null, profile);
 }));
 
