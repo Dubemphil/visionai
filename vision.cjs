@@ -124,6 +124,10 @@ app.get('/process-folder', async (req, res) => {
     }
 });
 
+app.get('/', (req, res) => {
+    res.json({ message: "Google Drive Scraper is running!" });
+});
+
 app.listen(port, () => {
     console.log(`✅ Server running on http://localhost:${port}`);
 });
