@@ -43,6 +43,7 @@ passport.deserializeUser((obj, done) => done(null, obj));
 app.get('/auth', (req, res, next) => {
     if (req.query.folderId) {
         req.session.folderId = req.query.folderId;
+        console.log("Stored folderId in session:", req.session.folderId);
     }
     passport.authenticate('google', { 
         scope: [
@@ -59,8 +60,10 @@ app.get('/auth/callback', passport.authenticate('google', { failureRedirect: '/'
         console.error("Authentication failed - No user profile returned");
         return res.status(401).json({ error: "Authentication failed" });
     }
-    req.session.accessToken = req.user.accessToken; // Store access token in session
+    req.session.accessToken = req.user.accessToken;
+    console.log("Stored accessToken in session:", req.session.accessToken);
     const folderId = req.session.folderId || '';
+    console.log("Redirecting to /process-folder with folderId:", folderId);
     res.redirect(`/process-folder?folderId=${folderId}`);
 });
 
@@ -82,7 +85,6 @@ async function createSpreadsheetInFolder(auth, folderId) {
 
         const spreadsheetId = spreadsheet.data.spreadsheetId;
 
-        // Move the spreadsheet to the selected folder
         await driveService.files.update({
             fileId: spreadsheetId,
             addParents: folderId,
@@ -99,17 +101,21 @@ async function createSpreadsheetInFolder(auth, folderId) {
 
 app.get('/process-folder', async (req, res) => {
     try {
+        console.log("Session folderId:", req.session.folderId);
+        console.log("Query folderId:", req.query.folderId);
+
         const folderId = req.query.folderId || req.session.folderId;
         if (!folderId) {
+            console.error("Error: Folder ID is required");
             return res.status(400).json({ error: "Folder ID is required" });
         }
-        req.session.folderId = folderId; // Store folderId in session
+        req.session.folderId = folderId;
 
         if (!req.session.accessToken) {
+            console.error("Unauthorized - Missing Access Token");
             return res.status(401).json({ error: "Unauthorized - Missing Access Token" });
         }
 
-        // Authenticate with Google APIs
         const auth = new google.auth.OAuth2();
         auth.setCredentials({ access_token: req.session.accessToken });
 
