@@ -46,4 +46,4 @@ jobs:
             --quiet \
             --timeout=300 \
             --port 8080 \
-            --set-env-vars GOOGLE_APPLICATION_CREDENTIALS_BASE64="${{ secrets.CREDENTIALS_JSON }}",SHEET_ID="${{ secrets.SHEET_ID }}"
+            --set-env-vars GOOGLE_APPLICATION_CREDENTIALS_BASE64="${{ secrets.CREDENTIALS_JSON }}",SHEET_ID="${{ secrets.SHEET_ID }}",GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}",GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}",GOOGLE_REDIRECT_URI="${{ secrets.GOOGLE_REDIRECT_URI }}"
