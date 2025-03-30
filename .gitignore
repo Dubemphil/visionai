@@ -6,7 +6,7 @@ yarn-error.log
 # Environment files
 .env
 service-account.json
-
+node_modules
 # Logs and temp files
 *.log
 *.tmp
