@@ -84,7 +84,13 @@ app.get('/select-folder', async (req, res) => {
         auth.setCredentials({ access_token: req.session.accessToken });
 
         const folders = await listFolders(auth);
-        res.json({ message: "Select a folder", folders });
+        
+        let html = '<h1>Select a Folder</h1><ul>';
+        folders.forEach(folder => {
+            html += `<li><a href="/process-folder?folderId=${folder.id}">${folder.name}</a></li>`;
+        });
+        html += '</ul>';
+        res.send(html);
     } catch (error) {
         console.error("Error selecting folder:", error);
         res.status(500).json({ error: "Internal Server Error" });
