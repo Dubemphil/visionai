@@ -127,6 +127,24 @@ async function extractBarcodesFromImages(auth, images) {
     return extractedLinks;
 }
 
+async function getExistingSpreadsheet(auth, folderId) {
+    try {
+        const driveService = google.drive({ version: 'v3', auth });
+        const response = await driveService.files.list({
+            q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet'`,
+            fields: 'files(id, name)'
+        });
+
+        if (response.data.files.length > 0) {
+            return response.data.files[0].id;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error finding existing spreadsheet:", error);
+        return null;
+    }
+}
+
 async function createSpreadsheetInFolder(auth, folderId, folderName) {
     try {
         const driveService = google.drive({ version: 'v3', auth });
