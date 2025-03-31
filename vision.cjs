@@ -87,7 +87,7 @@ app.get('/select-folder', async (req, res) => {
         
         let html = '<h1>Select a Folder</h1><ul>';
         folders.forEach(folder => {
-            html += `<li><a href="/process-folder?folderId=${folder.id}">${folder.name}</a></li>`;
+            html += `<li><a href="/process-folder?folderId=${folder.id}&folderName=${encodeURIComponent(folder.name)}">${folder.name}</a></li>`;
         });
         html += '</ul>';
         res.send(html);
@@ -121,22 +121,26 @@ async function extractBarcodesFromImages(auth, images) {
                 extractedLinks.push([detections[0].description]);
             }
         } catch (error) {
-            console.error(`Error processing image ${image.name}:`, error);
+            console.error(`Error processing image ${image.name}:", error);
         }
     }
     return extractedLinks;
 }
 
-async function getExistingSpreadsheet(auth, folderId) {
+async function createSpreadsheetInFolder(auth, folderId, folderName) {
     try {
         const driveService = google.drive({ version: 'v3', auth });
-        const response = await driveService.files.list({
-            q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet'`,
-            fields: 'files(id, name)',
+        const response = await driveService.files.create({
+            resource: {
+                name: folderName,
+                mimeType: 'application/vnd.google-apps.spreadsheet',
+                parents: [folderId]
+            },
+            fields: 'id'
         });
-        return response.data.files.length > 0 ? response.data.files[0].id : null;
+        return response.data.id;
     } catch (error) {
-        console.error("Error checking for existing spreadsheet:", error);
+        console.error("Error creating spreadsheet:", error);
         return null;
     }
 }
@@ -144,7 +148,8 @@ async function getExistingSpreadsheet(auth, folderId) {
 app.get('/process-folder', async (req, res) => {
     try {
         const folderId = req.query.folderId;
-        if (!folderId) {
+        const folderName = req.query.folderName;
+        if (!folderId || !folderName) {
             return res.redirect('/select-folder');
         }
 
@@ -157,7 +162,7 @@ app.get('/process-folder', async (req, res) => {
 
         let spreadsheetId = await getExistingSpreadsheet(auth, folderId);
         if (!spreadsheetId) {
-            spreadsheetId = await createSpreadsheetInFolder(auth, folderId);
+            spreadsheetId = await createSpreadsheetInFolder(auth, folderId, folderName);
             if (!spreadsheetId) {
                 return res.status(500).json({ error: "Failed to create spreadsheet" });
             }
