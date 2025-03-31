@@ -121,7 +121,7 @@ async function extractBarcodesFromImages(auth, images) {
                 extractedLinks.push([detections[0].description]);
             }
         } catch (error) {
-            console.error(`Error processing image ${image.name}:", error);
+            console.error(`Error processing image ${image.name}:`, error);
         }
     }
     return extractedLinks;
