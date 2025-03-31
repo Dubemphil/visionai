@@ -114,22 +114,31 @@ async function listImagesInFolder(auth, folderId) {
 async function extractBarcodesFromImages(auth, images) {
     const extractedLinks = [];
     for (const image of images) {
-        const [result] = await visionClient.textDetection(`https://drive.google.com/uc?id=${image.id}`);
-        const detections = result.textAnnotations;
-        if (detections.length > 0) {
-            extractedLinks.push([detections[0].description]);
+        try {
+            const [result] = await visionClient.textDetection(`https://drive.google.com/uc?id=${image.id}`);
+            const detections = result.textAnnotations;
+            if (detections.length > 0) {
+                extractedLinks.push([detections[0].description]);
+            }
+        } catch (error) {
+            console.error(`Error processing image ${image.name}:`, error);
         }
     }
     return extractedLinks;
 }
 
 async function getExistingSpreadsheet(auth, folderId) {
-    const driveService = google.drive({ version: 'v3', auth });
-    const response = await driveService.files.list({
-        q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet'`,
-        fields: 'files(id, name)',
-    });
-    return response.data.files.length > 0 ? response.data.files[0].id : null;
+    try {
+        const driveService = google.drive({ version: 'v3', auth });
+        const response = await driveService.files.list({
+            q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet'`,
+            fields: 'files(id, name)',
+        });
+        return response.data.files.length > 0 ? response.data.files[0].id : null;
+    } catch (error) {
+        console.error("Error checking for existing spreadsheet:", error);
+        return null;
+    }
 }
 
 app.get('/process-folder', async (req, res) => {
@@ -170,12 +179,8 @@ app.get('/process-folder', async (req, res) => {
         res.json({ message: `Processing folder: ${folderId}`, spreadsheetId });
     } catch (error) {
         console.error("Error processing folder:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error", details: error.message });
     }
-});
-
-app.get('/', (req, res) => {
-    res.json({ message: "Google Drive Scraper is running!" });
 });
 
 app.listen(port, () => {
