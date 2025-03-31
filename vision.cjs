@@ -14,8 +14,8 @@ const app = express();
 const port = process.env.PORT || 8080;
 const storage = new Storage();
 const visionClient = new vision.ImageAnnotatorClient();
-sheets = google.sheets('v4');
-drive = google.drive('v3');
+const sheets = google.sheets('v4');
+const drive = google.drive('v3');
 
 app.use(session({ secret: 'your_secret', resave: false, saveUninitialized: true }));
 app.use(passport.initialize());
@@ -75,58 +75,6 @@ async function listFolders(auth) {
     }
 }
 
-app.get('/select-folder', async (req, res) => {
-    try {
-        if (!req.session.accessToken) {
-            return res.status(401).json({ error: "Unauthorized - Missing Access Token" });
-        }
-        const auth = new google.auth.OAuth2();
-        auth.setCredentials({ access_token: req.session.accessToken });
-
-        const folders = await listFolders(auth);
-        
-        let html = '<h1>Select a Folder</h1><ul>';
-        folders.forEach(folder => {
-            html += `<li><a href="/process-folder?folderId=${folder.id}&folderName=${encodeURIComponent(folder.name)}">${folder.name}</a></li>`;
-        });
-        html += '</ul>';
-        res.send(html);
-    } catch (error) {
-        console.error("Error selecting folder:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-async function listImagesInFolder(auth, folderId) {
-    try {
-        const driveService = google.drive({ version: 'v3', auth });
-        const response = await driveService.files.list({
-            q: `'${folderId}' in parents and mimeType contains 'image/'`,
-            fields: 'files(id, name)'
-        });
-        return response.data.files;
-    } catch (error) {
-        console.error("Error fetching images:", error);
-        return [];
-    }
-}
-
-async function extractBarcodesFromImages(auth, images) {
-    const extractedLinks = [];
-    for (const image of images) {
-        try {
-            const [result] = await visionClient.textDetection(`https://drive.google.com/uc?id=${image.id}`);
-            const detections = result.textAnnotations;
-            if (detections.length > 0) {
-                extractedLinks.push([detections[0].description]);
-            }
-        } catch (error) {
-            console.error(`Error processing image ${image.name}:`, error);
-        }
-    }
-    return extractedLinks;
-}
-
 async function getExistingSpreadsheet(auth, folderId) {
     try {
         const driveService = google.drive({ version: 'v3', auth });
@@ -151,17 +99,48 @@ async function createSpreadsheetInFolder(auth, folderId, folderName) {
         const response = await driveService.files.create({
             resource: {
                 name: folderName,
-                mimeType: 'application/vnd.google-apps.spreadsheet',
-                parents: [folderId]
+                mimeType: 'application/vnd.google-apps.spreadsheet'
             },
-            fields: 'id'
+            fields: 'id, parents'
         });
-        return response.data.id;
+
+        const spreadsheetId = response.data.id;
+
+        await driveService.files.update({
+            fileId: spreadsheetId,
+            addParents: folderId,
+            removeParents: response.data.parents ? response.data.parents.join(',') : '',
+            fields: 'id, parents'
+        });
+
+        return spreadsheetId;
     } catch (error) {
         console.error("Error creating spreadsheet:", error);
         return null;
     }
 }
+
+app.get('/select-folder', async (req, res) => {
+    try {
+        if (!req.session.accessToken) {
+            return res.status(401).json({ error: "Unauthorized - Missing Access Token" });
+        }
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: req.session.accessToken });
+
+        const folders = await listFolders(auth);
+        
+        let html = '<h1>Select a Folder</h1><ul>';
+        folders.forEach(folder => {
+            html += `<li><a href="/process-folder?folderId=${folder.id}&folderName=${encodeURIComponent(folder.name)}">${folder.name}</a></li>`;
+        });
+        html += '</ul>';
+        res.send(html);
+    } catch (error) {
+        console.error("Error selecting folder:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
 app.get('/process-folder', async (req, res) => {
     try {
@@ -184,19 +163,6 @@ app.get('/process-folder', async (req, res) => {
             if (!spreadsheetId) {
                 return res.status(500).json({ error: "Failed to create spreadsheet" });
             }
-        }
-
-        const images = await listImagesInFolder(auth, folderId);
-        const extractedLinks = await extractBarcodesFromImages(auth, images);
-
-        if (extractedLinks.length > 0) {
-            await sheets.spreadsheets.values.update({
-                auth,
-                spreadsheetId,
-                range: "Sheet1!A2",
-                valueInputOption: "RAW",
-                resource: { values: extractedLinks }
-            });
         }
 
         res.json({ message: `Processing folder: ${folderId}`, spreadsheetId });
